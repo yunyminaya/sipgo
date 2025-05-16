@@ -35,7 +35,7 @@ type WSTransport struct {
 	dialer ws.Dialer
 }
 
-func NewWSTransport(par *sipgo.Parser) *WSTransport {
+func NewWSTransport(log *slog.Logger, par *sipgo.Parser) *WSTransport {
 	p := &WSTransport{
 		parser:    par,
 		pool:      NewConnectionPool(),
@@ -44,7 +44,7 @@ func NewWSTransport(par *sipgo.Parser) *WSTransport {
 	}
 
 	p.dialer.Protocols = WebSocketProtocols
-	p.log = slog.With("caller", "transport<WS>")
+	p.log = log.With("caller", "transport<WS>")
 	return p
 }
 
@@ -173,7 +173,7 @@ func (t *WSTransport) readConnection(conn *WSConnection, raddr string, handler s
 func (t *WSTransport) parseStream(par *sipgo.ParserStream, data []byte, src string, handler sip.MessageHandler) {
 	msg, err := t.parser.ParseSIP(data) //Very expensive operation
 	if err != nil {
-		t.log.Error("failed to parse", "err", err, "data", string(data))
+		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
 	}
 
@@ -186,7 +186,7 @@ func (t *WSTransport) parseStream(par *sipgo.ParserStream, data []byte, src stri
 func (t *WSTransport) parseFull(data []byte, src string, handler sip.MessageHandler) {
 	msg, err := t.parser.ParseSIP(data) //Very expensive operation
 	if err != nil {
-		t.log.Error("failed to parse", "err", err, "data", string(data))
+		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
 	}
 

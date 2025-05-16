@@ -36,12 +36,12 @@ type UDPTransport struct {
 	log *slog.Logger
 }
 
-func NewUDPTransport(par *sipgo.Parser) *UDPTransport {
+func NewUDPTransport(log *slog.Logger, par *sipgo.Parser) *UDPTransport {
 	p := &UDPTransport{
 		parser: par,
 		pool:   NewConnectionPool(),
 	}
-	p.log = slog.With("caller", "transport<UDP>")
+	p.log = log.With("caller", "transport<UDP>")
 	return p
 }
 
@@ -236,7 +236,7 @@ func (t *UDPTransport) parseAndHandle(data []byte, src string, handler sip.Messa
 
 	msg, err := t.parser.ParseSIP(data) //Very expensive operation
 	if err != nil {
-		t.log.Error("failed to parse", "err", err, "data", string(data))
+		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
 	}
 

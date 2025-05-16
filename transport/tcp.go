@@ -24,13 +24,13 @@ type TCPTransport struct {
 	pool *ConnectionPool
 }
 
-func NewTCPTransport(par *sipgo.Parser) *TCPTransport {
+func NewTCPTransport(log *slog.Logger, par *sipgo.Parser) *TCPTransport {
 	p := &TCPTransport{
 		parser:    par,
 		pool:      NewConnectionPool(),
 		transport: TransportTCP,
 	}
-	p.log = slog.With("caller", "transport<TCP>")
+	p.log = log.With("caller", "transport<TCP>")
 	return p
 }
 
@@ -178,7 +178,7 @@ func (t *TCPTransport) parseStream(par *sipgo.ParserStream, data []byte, src str
 		return
 	}
 	if err != nil {
-		t.log.Error("failed to parse", "err", err, "data", string(data))
+		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
 	}
 
@@ -193,7 +193,7 @@ func (t *TCPTransport) parseStream(par *sipgo.ParserStream, data []byte, src str
 func (t *TCPTransport) parseFull(data []byte, src string, handler sip.MessageHandler) {
 	msg, err := t.parser.ParseSIP(data) //Very expensive operation
 	if err != nil {
-		t.log.Error("failed to parse", "err", err, "data", string(data))
+		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
 	}
 

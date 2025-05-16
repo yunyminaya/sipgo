@@ -21,8 +21,8 @@ type WSSTransport struct {
 }
 
 // NewWSSTransport needs dialTLSConf for creating connections when dialing
-func NewWSSTransport(par *sipgo.Parser, dialTLSConf *tls.Config) *WSSTransport {
-	tcptrans := NewWSTransport(par)
+func NewWSSTransport(log *slog.Logger, par *sipgo.Parser, dialTLSConf *tls.Config) *WSSTransport {
+	tcptrans := NewWSTransport(log, par)
 	tcptrans.transport = TransportWSS
 	// Set our TLS config
 	p := &WSSTransport{
@@ -32,7 +32,7 @@ func NewWSSTransport(par *sipgo.Parser, dialTLSConf *tls.Config) *WSSTransport {
 	p.dialer.TLSConfig = dialTLSConf
 
 	// p.tlsConf = dialTLSConf
-	p.log = slog.With("caller", "transport<WSS>")
+	p.log = log.With("caller", "transport<WSS>")
 	return p
 }
 

@@ -15,7 +15,7 @@ import (
 )
 
 // RequestHandler is a callback that will be called on the incoming request
-type RequestHandler func(req *sip.Request, tx sip.ServerTransaction)
+type RequestHandler func(log *slog.Logger, req *sip.Request, tx sip.ServerTransaction)
 
 // Server is a SIP server
 type Server struct {
@@ -63,7 +63,7 @@ func newBaseServer(ua *UserAgent, options ...ServerOption) (*Server, error) {
 		requestMiddlewares:  make([]func(r *sip.Request), 0),
 		responseMiddlewares: make([]func(r *sip.Response), 0),
 		requestHandlers:     make(map[sip.RequestMethod]RequestHandler),
-		log:                 slog.With("caller", "Server"),
+		log:                 ua.log.With("caller", "Server"),
 	}
 	for _, o := range options {
 		if err := o(s); err != nil {
@@ -221,18 +221,18 @@ func (srv *Server) ServeWSS(l net.Listener) error {
 }
 
 // onRequest gets request from Transaction layer
-func (srv *Server) onRequest(req *sip.Request, tx sip.ServerTransaction) {
-	go srv.handleRequest(req, tx)
+func (srv *Server) onRequest(log *slog.Logger, req *sip.Request, tx sip.ServerTransaction) {
+	go srv.handleRequest(log, req, tx)
 }
 
 // handleRequest must be run in seperate goroutine
-func (srv *Server) handleRequest(req *sip.Request, tx sip.ServerTransaction) {
+func (srv *Server) handleRequest(log *slog.Logger, req *sip.Request, tx sip.ServerTransaction) {
 	for _, mid := range srv.requestMiddlewares {
 		mid(req)
 	}
 
 	handler := srv.getHandler(req.Method)
-	handler(req, tx)
+	handler(log, req, tx)
 	if tx != nil {
 		// Must be called to prevent any transaction leaks
 		tx.Terminate()
@@ -349,12 +349,12 @@ func (srv *Server) getHandler(method sip.RequestMethod) (handler RequestHandler)
 	return handler
 }
 
-func (srv *Server) defaultUnhandledHandler(req *sip.Request, tx sip.ServerTransaction) {
-	srv.log.Warn("SIP request handler not found")
+func (srv *Server) defaultUnhandledHandler(log *slog.Logger, req *sip.Request, tx sip.ServerTransaction) {
+	log.Warn("SIP request handler not found")
 	res := sip.NewResponseFromRequest(req, 405, "Method Not Allowed", nil)
 	// Send response directly and let transaction terminate
 	if err := srv.WriteResponse(res); err != nil {
-		srv.log.Error("respond '405 Method Not Allowed' failed", "err", err)
+		log.Error("respond '405 Method Not Allowed' failed", "err", err)
 	}
 }
 

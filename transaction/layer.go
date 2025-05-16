@@ -8,31 +8,31 @@ import (
 	"github.com/livekit/sipgo/transport"
 )
 
-type RequestHandler func(req *sip.Request, tx sip.ServerTransaction)
-type UnhandledResponseHandler func(req *sip.Response)
+type RequestHandler func(log *slog.Logger, req *sip.Request, tx sip.ServerTransaction)
+type UnhandledResponseHandler func(log *slog.Logger, req *sip.Response)
 type ErrorHandler func(err error)
 
-func defaultRequestHandler(r *sip.Request, tx sip.ServerTransaction) {
-	slog.Info("Unhandled sip request. OnRequest handler not added", "caller", "transaction.Layer", "msg", r.Short())
+func defaultRequestHandler(log *slog.Logger, r *sip.Request, tx sip.ServerTransaction) {
+	log.Debug("Unhandled sip request. OnRequest handler not added", "msg", r.Short())
 }
 
-func defaultUnhandledRespHandler(r *sip.Response) {
-	slog.Info("Unhandled sip response. UnhandledResponseHandler handler not added", "caller", "transaction.Layer", "msg", r.Short())
+func defaultUnhandledRespHandler(log *slog.Logger, r *sip.Response) {
+	log.Debug("Unhandled sip response. UnhandledResponseHandler handler not added", "msg", r.Short())
 }
 
 type Layer struct {
+	log           *slog.Logger
 	tpl           *transport.Layer
 	reqHandler    RequestHandler
 	unRespHandler UnhandledResponseHandler
 
 	clientTransactions *transactionStore
 	serverTransactions *transactionStore
-
-	log *slog.Logger
 }
 
-func NewLayer(tpl *transport.Layer) *Layer {
+func NewLayer(log *slog.Logger, tpl *transport.Layer) *Layer {
 	txl := &Layer{
+		log:                log.With("caller", "transaction.Layer"),
 		tpl:                tpl,
 		clientTransactions: newTransactionStore(),
 		serverTransactions: newTransactionStore(),
@@ -40,7 +40,6 @@ func NewLayer(tpl *transport.Layer) *Layer {
 		reqHandler:    defaultRequestHandler,
 		unRespHandler: defaultUnhandledRespHandler,
 	}
-	txl.log = slog.With("caller", "transaction.Layer")
 	//Send all transport messages to our transaction layer
 	tpl.OnMessage(txl.handleMessage)
 	return txl
@@ -109,7 +108,7 @@ func (txl *Layer) handleRequest(req *sip.Request) {
 	txl.serverTransactions.put(tx.Key(), tx)
 	tx.OnTerminate(txl.serverTxTerminate)
 
-	txl.reqHandler(req, tx)
+	txl.reqHandler(tx.log, req, tx)
 }
 
 func (txl *Layer) handleResponse(res *sip.Response) {
@@ -123,7 +122,7 @@ func (txl *Layer) handleResponse(res *sip.Response) {
 	if !exists {
 		// RFC 3261 - 17.1.1.2.
 		// Not matched responses should be passed directly to the UA
-		txl.unRespHandler(res)
+		txl.unRespHandler(txl.log, res)
 		return
 	}
 

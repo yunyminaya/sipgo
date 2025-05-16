@@ -1,6 +1,8 @@
 package sipgo
 
 import (
+	"log/slog"
+
 	"github.com/livekit/sipgo/sip"
 )
 
@@ -27,11 +29,11 @@ func NewServerDialog(ua *UserAgent, options ...ServerOption) (*ServerDialog, err
 	return s, nil
 }
 
-func (s *ServerDialog) onRequestDialog(r *sip.Request, tx sip.ServerTransaction) {
-	go s.handleRequestDialog(r, tx)
+func (s *ServerDialog) onRequestDialog(log *slog.Logger, r *sip.Request, tx sip.ServerTransaction) {
+	go s.handleRequestDialog(log, r, tx)
 }
 
-func (s *ServerDialog) handleRequestDialog(r *sip.Request, tx sip.ServerTransaction) {
+func (s *ServerDialog) handleRequestDialog(log *slog.Logger, r *sip.Request, tx sip.ServerTransaction) {
 	switch r.Method {
 	// Early state
 	// case sip.INVITE:
@@ -50,7 +52,7 @@ func (s *ServerDialog) handleRequestDialog(r *sip.Request, tx sip.ServerTransact
 	// This makes allocation, but hard to override
 	// Maybe goign on transaction layer
 	wraptx := &dialogServerTx{tx, s}
-	s.Server.handleRequest(r, wraptx)
+	s.Server.handleRequest(log, r, wraptx)
 }
 
 func (s *ServerDialog) publish(r sip.Message, d sip.Dialog) {

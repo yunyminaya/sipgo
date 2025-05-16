@@ -6,10 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net"
 	"sync"
-	"time"
 
 	sipgo "github.com/emiago/sipgo/sip"
 
@@ -20,12 +18,10 @@ var (
 	ErrNetworkNotSuported = errors.New("protocol not supported")
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 // Layer implementation.
 type Layer struct {
+	log *slog.Logger
+
 	udp *UDPTransport
 	tcp *TCPTransport
 	tls *TLSTransport
@@ -40,8 +36,6 @@ type Layer struct {
 
 	handlers []sip.MessageHandler
 
-	log *slog.Logger
-
 	// ConnectionReuse will force connection reuse when passing request
 	ConnectionReuse bool
 }
@@ -51,27 +45,27 @@ type Layer struct {
 // sip parser
 // tls config - can be nil to use default tls
 func NewLayer(
+	log *slog.Logger,
 	dnsResolver *net.Resolver,
 	sipparser *sipgo.Parser,
 	tlsConfig *tls.Config,
 ) *Layer {
 	l := &Layer{
+		log:             log.With("caller", "transportlayer"),
 		transports:      make(map[string]Transport),
 		listenPorts:     make(map[string][]int),
 		dnsResolver:     dnsResolver,
 		ConnectionReuse: true,
 	}
 
-	l.log = slog.With("caller", "transportlayer")
-
 	// Make some default transports available.
-	l.udp = NewUDPTransport(sipparser)
-	l.tcp = NewTCPTransport(sipparser)
+	l.udp = NewUDPTransport(log, sipparser)
+	l.tcp = NewTCPTransport(log, sipparser)
 	// TODO. Using default dial tls, but it needs to configurable via client
-	l.tls = NewTLSTransport(sipparser, tlsConfig)
-	l.ws = NewWSTransport(sipparser)
+	l.tls = NewTLSTransport(log, sipparser, tlsConfig)
+	l.ws = NewWSTransport(log, sipparser)
 	// TODO. Using default dial tls, but it needs to configurable via client
-	l.wss = NewWSSTransport(sipparser, tlsConfig)
+	l.wss = NewWSSTransport(log, sipparser, tlsConfig)
 
 	// Fill map for fast access
 	l.transports["udp"] = l.udp
