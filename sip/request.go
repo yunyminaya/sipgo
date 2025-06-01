@@ -117,6 +117,8 @@ func NewCancelRequest(requestForCancel *Request) *Request {
 	cseq := cancelReq.CSeq()
 	cseq.MethodName = CANCEL
 
+	cancelReq.SetBody(nil)
+
 	// cancelReq.SetBody([]byte{})
 	cancelReq.SetTransport(requestForCancel.Transport())
 	cancelReq.SetSource(requestForCancel.Source())
