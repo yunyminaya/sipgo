@@ -146,7 +146,7 @@ func (t *TCPTransport) readConnection(conn *TCPConnection, raddr string, handler
 				return
 			}
 
-			t.log.Error("Read error", "err", err)
+			t.log.Debug("Read error", "err", err)
 			return
 		}
 
