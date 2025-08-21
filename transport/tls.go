@@ -55,7 +55,8 @@ func (t *TLSTransport) CreateConnection(laddr Addr, host string, raddr Addr, han
 
 func (t *TLSTransport) createConnection(laddr *net.TCPAddr, host string, raddr *net.TCPAddr, handler sip.MessageHandler) (Connection, error) {
 	addr := raddr.String()
-	t.log.Debug("Dialing new connection", "raddr", addr, "host", host)
+	log := t.log.With("raddr", addr, "host", host)
+	log.Debug("Dialing new TLS connection")
 
 	//TODO does this need to be each config
 	// SHould we make copy of rootPool?
@@ -75,6 +76,6 @@ func (t *TLSTransport) createConnection(laddr *net.TCPAddr, host string, raddr *
 	}
 	tconn := tls.Client(conn, conf)
 
-	c := t.initConnection(tconn, addr, handler)
+	c := t.initConnection(log, tconn, addr, handler)
 	return c, nil
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"runtime"
 	"sync"
 
 	sipgo "github.com/emiago/sipgo/sip"
@@ -51,15 +52,16 @@ func (t *TCPTransport) Close() error {
 
 // Serve is direct way to provide conn on which this worker will listen
 func (t *TCPTransport) Serve(l net.Listener, handler sip.MessageHandler) error {
-	t.log.Debug("begin listening on", "net", t.Network(), "addr", l.Addr())
+	log := t.log.With("net", t.Network(), "listen", l.Addr())
+	log.Debug("begin listening on")
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			t.log.Debug("Fail to accept conenction", "err", err)
+			log.Debug("Fail to accept conenction", "err", err)
 			return err
 		}
 
-		t.initConnection(conn, conn.RemoteAddr().String(), handler)
+		t.initConnection(log, conn, conn.RemoteAddr().String(), handler)
 	}
 }
 
@@ -96,7 +98,8 @@ func (t *TCPTransport) CreateConnection(laddr Addr, host string, raddr Addr, han
 
 func (t *TCPTransport) createConnection(laddr *net.TCPAddr, raddr *net.TCPAddr, handler sip.MessageHandler) (Connection, error) {
 	addr := raddr.String()
-	t.log.Debug("Dialing new connection", "raddr", addr)
+	log := t.log.With("raddr", addr)
+	log.Debug("Dialing new connection")
 
 	conn, err := net.DialTCP("tcp", laddr, raddr)
 	if err != nil {
@@ -111,15 +114,17 @@ func (t *TCPTransport) createConnection(laddr *net.TCPAddr, raddr *net.TCPAddr, 
 	// 	return nil, fmt.Errorf("%s keepalive period err=%w", t, err)
 	// }
 
-	c := t.initConnection(conn, addr, handler)
+	c := t.initConnection(log, conn, addr, handler)
 	return c, nil
 }
 
-func (t *TCPTransport) initConnection(conn net.Conn, addr string, handler sip.MessageHandler) Connection {
+func (t *TCPTransport) initConnection(log *slog.Logger, conn net.Conn, addr string, handler sip.MessageHandler) Connection {
 	// // conn.SetKeepAlive(true)
 	// conn.SetKeepAlivePeriod(3 * time.Second)
 
-	t.log.Debug("New connection", "raddr", addr)
+	pc, _, _, _ := runtime.Caller(1)
+	caller := runtime.FuncForPC(pc).Name()
+	log.Debug("New TCP connection", "raddr", addr, "caller", caller)
 	c := &TCPConnection{
 		Conn:     conn,
 		refcount: 1 + IdleConnection,
