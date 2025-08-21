@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"runtime/debug"
 
 	sipgo "github.com/emiago/sipgo/sip"
 
@@ -57,9 +58,8 @@ func (t *TLSTransport) createConnection(laddr *net.TCPAddr, host string, raddr *
 	addr := raddr.String()
 	log := t.log.With("raddr", addr, "host", host)
 	log.Info("Dialing new TLS connection")
-	t.log.Info("Dialing new TLS connection 2", "raddr", addr, "host", host)
-	slog.Info("Dialing new TLS connection 3", "raddr", addr, "host", host)
-	fmt.Printf("Dialing new TLS connection: host=%s, addr=%s, log=%T(%v)\n", host, addr, log, log)
+	fmt.Printf("Dialing new TLS connection: host=%s, addr=%s, log=%T(%v)\n", host, addr, log.Handler(), log.Handler())
+	debug.PrintStack()
 
 	//TODO does this need to be each config
 	// SHould we make copy of rootPool?
