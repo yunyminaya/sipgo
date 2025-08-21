@@ -30,7 +30,7 @@ func NewTLSTransport(log *slog.Logger, par *sipgo.Parser, dialTLSConf *tls.Confi
 
 	// p.rootPool = roots
 	p.tlsConf = dialTLSConf
-	p.log = log.With("caller", "transport<TLS>")
+	//p.log = log.With("caller", "transport<TLS>")
 	return p
 }
 
@@ -56,7 +56,7 @@ func (t *TLSTransport) CreateConnection(laddr Addr, host string, raddr Addr, han
 func (t *TLSTransport) createConnection(laddr *net.TCPAddr, host string, raddr *net.TCPAddr, handler sip.MessageHandler) (Connection, error) {
 	addr := raddr.String()
 	log := t.log.With("raddr", addr, "host", host)
-	log.Debug("Dialing new TLS connection")
+	log.Info("Dialing new TLS connection")
 
 	//TODO does this need to be each config
 	// SHould we make copy of rootPool?
@@ -72,6 +72,7 @@ func (t *TLSTransport) createConnection(laddr *net.TCPAddr, host string, raddr *
 	}
 	conn, err := dialer.DialContext(context.TODO(), "tcp", addr)
 	if err != nil {
+		log.Warn("Failed to dial new TLS connection", "err", err)
 		return nil, fmt.Errorf("%s dial err=%w", t, err)
 	}
 	tconn := tls.Client(conn, conf)
