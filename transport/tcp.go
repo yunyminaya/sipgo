@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	sipgo "github.com/emiago/sipgo/sip"
 
@@ -256,6 +257,7 @@ func (c *TCPConnection) Read(b []byte) (n int, err error) {
 
 func (c *TCPConnection) Write(b []byte) (n int, err error) {
 	// Some debug hook. TODO move to proper way
+	c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	n, err = c.Conn.Write(b)
 	if SIPDebug {
 		slog.Debug("TCP write", "local", c.Conn.LocalAddr(), "remote", c.Conn.RemoteAddr(), "data", string(b[:n]))
