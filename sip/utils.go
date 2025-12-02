@@ -3,20 +3,9 @@ package sip
 import (
 	"errors"
 	"net"
-	"strings"
 
 	sipgo "github.com/emiago/sipgo/sip"
 )
-
-// https://github.com/kpbird/golang_random_string
-func RandString(n int) string {
-	return sipgo.RandString(n)
-}
-
-// https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go
-func RandStringBytesMask(sb *strings.Builder, n int) string {
-	return sipgo.RandStringBytesMask(sb, n)
-}
 
 // ASCIIToLower is faster than go version. It avoids one more loop
 func ASCIIToLower(s string) string {
@@ -30,29 +19,6 @@ func ASCIIToLowerInPlace(s []byte) {
 // HeaderToLower is fast ASCII lower string
 func HeaderToLower(s string) string {
 	return sipgo.HeaderToLower(s)
-}
-
-// Check uri is SIP fast
-func UriIsSIP(s string) bool {
-	switch s {
-	case "sip", "SIP":
-		return true
-	}
-	return false
-}
-
-func UriIsSIPS(s string) bool {
-	switch s {
-	case "sips", "SIPS":
-		return true
-	}
-	return false
-}
-
-// Splits the given string into sections, separated by one or more characters
-// from c_ABNF_WS.
-func SplitByWhitespace(text string) []string {
-	return sipgo.SplitByWhitespace(text)
 }
 
 // Forked from github.com/StefanKopieczek/gossip by @StefanKopieczek
