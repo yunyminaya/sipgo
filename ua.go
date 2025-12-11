@@ -17,6 +17,7 @@ type UserAgent struct {
 	name        string
 	ip          net.IP
 	dnsResolver *net.Resolver
+	tcpConfig   *TCPConfig
 	tlsConfig   *tls.Config
 	tp          *transport.Layer
 	tx          *transaction.Layer
@@ -58,6 +59,16 @@ func WithUserAgenTLSConfig(c *tls.Config) UserAgentOption {
 	}
 }
 
+type TCPConfig = transport.TCPConfig
+
+// WithUserAgentTCPConfig allows customizing default TCP config.
+func WithUserAgentTCPConfig(c *TCPConfig) UserAgentOption {
+	return func(s *UserAgent) error {
+		s.tcpConfig = c
+		return nil
+	}
+}
+
 func WithUserAgentLogger(log *slog.Logger) UserAgentOption {
 	return func(s *UserAgent) error {
 		s.log = log
@@ -92,7 +103,7 @@ func NewUA(options ...UserAgentOption) (*UserAgent, error) {
 	}
 
 	// TODO export parser to be configurable
-	ua.tp = transport.NewLayer(ua.log, ua.dnsResolver, sipgo.NewParser(), ua.tlsConfig)
+	ua.tp = transport.NewLayer(ua.log, ua.dnsResolver, sipgo.NewParser(), ua.tcpConfig, ua.tlsConfig)
 	ua.tx = transaction.NewLayer(ua.log, ua.tp)
 	return ua, nil
 }

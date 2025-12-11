@@ -48,6 +48,7 @@ func NewLayer(
 	log *slog.Logger,
 	dnsResolver *net.Resolver,
 	sipparser *sipgo.Parser,
+	tcpConfig *TCPConfig,
 	tlsConfig *tls.Config,
 ) *Layer {
 	l := &Layer{
@@ -60,7 +61,7 @@ func NewLayer(
 
 	// Make some default transports available.
 	l.udp = NewUDPTransport(log, sipparser)
-	l.tcp = NewTCPTransport(log, sipparser)
+	l.tcp = NewTCPTransport(log, sipparser, tcpConfig)
 	// TODO. Using default dial tls, but it needs to configurable via client
 	l.tls = NewTLSTransport(log, sipparser, tlsConfig)
 	l.ws = NewWSTransport(log, sipparser)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -15,8 +16,17 @@ import (
 	"github.com/livekit/sipgo/sip"
 )
 
+type PortRange struct {
+	Min, Max int
+}
+
+type TCPConfig struct {
+	DialPorts PortRange
+}
+
 // TCP transport implementation
 type TCPTransport struct {
+	c         TCPConfig
 	addr      string
 	transport string
 	parser    *sipgo.Parser
@@ -25,11 +35,14 @@ type TCPTransport struct {
 	pool *ConnectionPool
 }
 
-func NewTCPTransport(log *slog.Logger, par *sipgo.Parser) *TCPTransport {
+func NewTCPTransport(log *slog.Logger, par *sipgo.Parser, c *TCPConfig) *TCPTransport {
 	p := &TCPTransport{
 		parser:    par,
 		pool:      NewConnectionPool(),
 		transport: TransportTCP,
+	}
+	if c != nil {
+		p.c = *c
 	}
 	p.log = log.With("caller", "transport<TCP>")
 	return p
@@ -92,14 +105,19 @@ func (t *TCPTransport) CreateConnection(laddr Addr, host string, raddr Addr, han
 		IP:   raddr.IP,
 		Port: raddr.Port,
 	}
-	return t.createConnection(nil, traddr, handler)
+	return t.createConnection(traddr, handler)
 }
 
-func (t *TCPTransport) createConnection(laddr *net.TCPAddr, raddr *net.TCPAddr, handler sip.MessageHandler) (Connection, error) {
+func (t *TCPTransport) createConnection(raddr *net.TCPAddr, handler sip.MessageHandler) (Connection, error) {
 	addr := raddr.String()
 	t.log.Debug("Dialing new connection", "raddr", addr)
 
-	conn, err := net.DialTCP("tcp", laddr, raddr)
+	conn, err := bindRange(t.c.DialPorts.Min, t.c.DialPorts.Max, func(lport int) (*net.TCPConn, error) {
+		return net.DialTCP("tcp", &net.TCPAddr{
+			IP:   nil, // let os decide
+			Port: lport,
+		}, raddr)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("%s dial err=%w", t, err)
 	}
@@ -287,4 +305,47 @@ func (c *TCPConnection) WriteMsg(msg sip.Message) error {
 		return fmt.Errorf("fail to write full message")
 	}
 	return nil
+}
+
+type bindFunc[T any] func(port int) (T, error)
+
+func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
+	if portMin <= 0 && portMax <= 0 {
+		return create(0)
+	}
+
+	i := portMin
+	if i <= 0 {
+		i = 1
+	}
+
+	j := portMax
+	if j <= 0 {
+		j = 0xFFFF
+	}
+
+	if i > j {
+		var zero T
+		return zero, errors.New("invalid range")
+	}
+
+	portStart := rand.Intn(portMax-portMin+1) + portMin
+	portCurrent := portStart
+
+	for {
+		c, err := create(portCurrent)
+		if err == nil {
+			return c, nil
+		}
+
+		portCurrent++
+		if portCurrent > j {
+			portCurrent = i
+		}
+		if portCurrent == portStart {
+			break
+		}
+	}
+	var zero T
+	return zero, errors.New("cannot allocate port")
 }
