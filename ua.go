@@ -60,6 +60,7 @@ func WithUserAgenTLSConfig(c *tls.Config) UserAgentOption {
 }
 
 type TCPConfig = transport.TCPConfig
+type PortRange = transport.PortRange
 
 // WithUserAgentTCPConfig allows customizing default TCP config.
 func WithUserAgentTCPConfig(c *TCPConfig) UserAgentOption {
