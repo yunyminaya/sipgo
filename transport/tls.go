@@ -21,8 +21,8 @@ type TLSTransport struct {
 }
 
 // NewTLSTransport needs dialTLSConf for creating connections when dialing
-func NewTLSTransport(log *slog.Logger, par *sipgo.Parser, dialTLSConf *tls.Config) *TLSTransport {
-	tcptrans := NewTCPTransport(log, par)
+func NewTLSTransport(log *slog.Logger, par *sipgo.Parser, tcpConf *TCPConfig, dialTLSConf *tls.Config) *TLSTransport {
+	tcptrans := NewTCPTransport(log, par, tcpConf)
 	tcptrans.transport = TransportTLS //Override transport
 	p := &TLSTransport{
 		TCPTransport: tcptrans,

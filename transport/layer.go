@@ -63,7 +63,7 @@ func NewLayer(
 	l.udp = NewUDPTransport(log, sipparser)
 	l.tcp = NewTCPTransport(log, sipparser, tcpConfig)
 	// TODO. Using default dial tls, but it needs to configurable via client
-	l.tls = NewTLSTransport(log, sipparser, tlsConfig)
+	l.tls = NewTLSTransport(log, sipparser, tcpConfig, tlsConfig)
 	l.ws = NewWSTransport(log, sipparser)
 	// TODO. Using default dial tls, but it needs to configurable via client
 	l.wss = NewWSSTransport(log, sipparser, tlsConfig)
