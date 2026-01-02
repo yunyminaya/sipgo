@@ -192,19 +192,17 @@ func (t *TCPTransport) readConnection(conn *TCPConnection, raddr string, handler
 
 func (t *TCPTransport) parseStream(par *sipgo.ParserStream, data []byte, src string, handler sip.MessageHandler) {
 	bytesPacketSize.WithLabelValues("tcp", "read").Observe(float64(len(data)))
-	msgs, err := par.ParseSIPStream(data)
+	err := par.ParseSIPStream(data, func(msg sipgo.Message) {
+		msg.SetTransport(t.Network())
+		msg.SetSource(src)
+		handler(msg)
+	})
 	if err == sipgo.ErrParseSipPartial {
 		return
 	}
 	if err != nil {
 		t.log.Info("failed to parse", "err", err, "data", string(data))
 		return
-	}
-
-	for _, msg := range msgs {
-		msg.SetTransport(t.Network())
-		msg.SetSource(src)
-		handler(msg)
 	}
 }
 
