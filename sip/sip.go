@@ -1,8 +1,6 @@
 package sip
 
 import (
-	"fmt"
-
 	sipgo "github.com/emiago/sipgo/sip"
 )
 
@@ -57,29 +55,4 @@ func DefaultPort(transport string) int {
 	default:
 		return DefaultTcpPort
 	}
-}
-
-func MakeDialogIDFromRequest(msg *Request) (string, error) {
-	return sipgo.MakeDialogIDFromRequest(msg)
-}
-
-func MakeDialogIDFromResponse(msg *Response) (string, error) {
-	return sipgo.MakeDialogIDFromResponse(msg)
-}
-
-// MakeDialogIDFromMessage creates dialog ID of message.
-// returns error if callid or to tag or from tag does not exists
-// Deprecated! Will be removed
-func MakeDialogIDFromMessage(msg Message) (string, error) {
-	switch m := msg.(type) {
-	case *Request:
-		return sipgo.MakeDialogIDFromRequest(m)
-	case *Response:
-		return sipgo.MakeDialogIDFromResponse(m)
-	}
-	return "", fmt.Errorf("unknown message format")
-}
-
-func MakeDialogID(callID, innerID, externalID string) string {
-	return sipgo.MakeDialogID(callID, innerID, externalID)
 }

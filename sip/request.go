@@ -183,7 +183,3 @@ func NewByeRequest(inviteRequest *Request, inviteResponse *Response, body []byte
 
 	return byeRequest
 }
-
-func CopyRequest(req *Request) *Request {
-	return sipgo.CopyRequest(req)
-}
