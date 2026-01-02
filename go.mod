@@ -1,6 +1,10 @@
 module github.com/livekit/sipgo
 
-go 1.22
+go 1.23.0
+
+toolchain go1.24.5
+
+replace github.com/emiago/sipgo => github.com/livekit/sipgo v0.13.2-0.20260102145800-b2c9e4202d62
 
 require (
 	github.com/emiago/sipgo v0.32.0
@@ -23,7 +27,7 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
