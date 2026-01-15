@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	sipgo "github.com/emiago/sipgo/sip"
@@ -307,9 +308,13 @@ func (c *TCPConnection) WriteMsg(msg sip.Message) error {
 
 type bindFunc[T any] func(port int) (T, error)
 
+var ErrCannotBindPort = errors.New("cannot allocate port")
+
 func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
 	if portMin <= 0 && portMax <= 0 {
 		return create(0)
+	} else if portMin == portMax {
+		return create(portMin)
 	}
 
 	i := portMin
@@ -327,13 +332,16 @@ func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
 		return zero, errors.New("invalid range")
 	}
 
-	portStart := rand.Intn(portMax-portMin+1) + portMin
+	ports := portMax - portMin + 1
+	portStart := rand.Intn(ports) + portMin
 	portCurrent := portStart
 
-	for {
+	for try := 0; try < ports; try++ {
 		c, err := create(portCurrent)
 		if err == nil {
 			return c, nil
+		} else if !errors.Is(err, syscall.EADDRINUSE) {
+			return c, err
 		}
 
 		portCurrent++
@@ -345,5 +353,5 @@ func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
 		}
 	}
 	var zero T
-	return zero, errors.New("cannot allocate port")
+	return zero, ErrCannotBindPort
 }
