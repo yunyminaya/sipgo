@@ -311,30 +311,24 @@ type bindFunc[T any] func(port int) (T, error)
 var ErrCannotBindPort = errors.New("cannot allocate port")
 
 func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
+	var zero T
 	if portMin <= 0 && portMax <= 0 {
 		return create(0)
 	} else if portMin == portMax {
 		return create(portMin)
 	}
-
-	i := portMin
-	if i <= 0 {
-		i = 1
+	if portMin <= 0 {
+		portMin = 1
 	}
-
-	j := portMax
-	if j <= 0 {
-		j = 0xFFFF
+	if portMax <= 0 || portMax > 0xFFFF {
+		portMax = 0xFFFF
 	}
-
-	if i > j {
-		var zero T
+	if portMin > portMax {
 		return zero, errors.New("invalid range")
 	}
 
 	ports := portMax - portMin + 1
-	portStart := rand.Intn(ports) + portMin
-	portCurrent := portStart
+	portCurrent := rand.Intn(ports) + portMin
 
 	for try := 0; try < ports; try++ {
 		c, err := create(portCurrent)
@@ -343,15 +337,10 @@ func bindRange[T any](portMin, portMax int, create bindFunc[T]) (T, error) {
 		} else if !errors.Is(err, syscall.EADDRINUSE) {
 			return c, err
 		}
-
 		portCurrent++
-		if portCurrent > j {
-			portCurrent = i
-		}
-		if portCurrent == portStart {
-			break
+		if portCurrent > portMax {
+			portCurrent = portMin
 		}
 	}
-	var zero T
 	return zero, ErrCannotBindPort
 }
