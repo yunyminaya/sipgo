@@ -4,10 +4,8 @@ go 1.23.0
 
 toolchain go1.24.5
 
-replace github.com/emiago/sipgo => github.com/livekit/sipgo v0.13.2-0.20260102145800-b2c9e4202d62
-
 require (
-	github.com/emiago/sipgo v0.32.0
+	github.com/emiago/sipgo v1.1.0
 	github.com/gobwas/ws v1.4.0
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.12.0
