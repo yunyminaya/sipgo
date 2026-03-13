@@ -247,8 +247,8 @@ func ClientRequestAddRecordRoute(c *Client, r *sip.Request) error {
 			UriParams: sip.HeaderParams{
 				// Transport must be provided as wesll
 				// https://datatracker.ietf.org/doc/html/rfc5658
-				"transport": transport.NetworkToLower(r.Transport()),
-				"lr":        "",
+				{"transport", transport.NetworkToLower(r.Transport())},
+				{"lr", ""},
 			},
 		},
 	}
