@@ -26,10 +26,6 @@ func CopyRoutingHeaders(newReq *Request, inviteRequest *Request, inviteResponse 
 	if inviteResponse != nil { // First attempt to get the full route-set
 		headers = inviteResponse.GetHeaders("Record-Route")
 	}
-	if len(headers) == 0 && inviteRequest != nil { // Fallback to legacy code
-		headers = inviteRequest.GetHeaders("Route")
-		reverse = !reverse
-	}
 	if reverse {
 		slices.Reverse(headers)
 	}
