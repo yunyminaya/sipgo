@@ -328,9 +328,10 @@ func (l *Layer) ClientRequestConnection(req *sip.Request) (c Connection, err err
 				return nil, fmt.Errorf("fail to parse local connection address network=%s addr=%s: %w", network, laddrStr, err)
 			}
 
-			// In case client forced some host (like external IP) we do not want to overwrite
-			// Currently we always have this set as resolved IP
-			if viaHop.Host == "" {
+			// Match new-connection behavior: with default Port 0 from ClientRequestAddVia, a reused
+			// socket must set Host from LocalAddr too (else only Port was updated). If Host and Port
+			// were both set explicitly, leave Host alone.
+			if viaHop.Host == "" || viaHop.Port == 0 {
 				viaHop.Host = host
 
 				// Leaving this for fallback as UDP can return us listener with on broadcast address (unspecified)
@@ -385,9 +386,8 @@ func (l *Layer) ClientRequestConnection(req *sip.Request) (c Connection, err err
 			return nil, fmt.Errorf("fail to parse local connection address network=%s addr=%s: %w", network, laddrStr, err)
 		}
 
-		if viaHop.Host != "" {
-			viaHop.Host = host
-		}
+		// Sent-by must come from LocalAddr for this branch; set Host and Port (not only when Host was non-empty).
+		viaHop.Host = host
 		viaHop.Port = port
 	}
 	return c, nil
