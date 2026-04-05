@@ -34,14 +34,17 @@ func CopyRoutingHeaders(newReq *Request, inviteRequest *Request, inviteResponse 
 	}
 }
 
-// NewAckRequest creates ACK request for 2xx INVITE
-// https://tools.ietf.org/html/rfc3261#section-13.2.2.4
+// NewAckRequest creates an ACK request for an INVITE response (RFC 3261).
+// For 2xx (§13.2.2.4): Request-URI from Contact, Route from Record-Route, new branch (new Tx).
+// For non-2xx (§17.1.1.3): same Request-URI, same Route, same branch as original INVITE (same Tx).
 func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte, isOriginalUAC bool) *Request {
 	Recipient := inviteRequest.Recipient
-	if contact := inviteResponse.Contact(); contact != nil {
-		// For ws and wss (like clients in browser), don't use Contact
-		if strings.Index(strings.ToLower(Recipient.String()), "transport=ws") == -1 {
-			Recipient = contact.Address
+	if inviteResponse.IsSuccess() {
+		if contact := inviteResponse.Contact(); contact != nil {
+			// For ws and wss (like clients in browser), don't use Contact
+			if strings.Index(strings.ToLower(Recipient.String()), "transport=ws") == -1 {
+				Recipient = contact.Address
+			}
 		}
 	}
 	ackRequest := sipgo.NewRequest(
@@ -56,7 +59,13 @@ func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte
 		viaHop.Params.Add("branch", GenerateBranch())
 	}
 
-	CopyRoutingHeaders(ackRequest, inviteRequest, inviteResponse, isOriginalUAC)
+	if inviteResponse.IsSuccess() {
+		// 2xx ACK: Route set from Record-Route in response
+		CopyRoutingHeaders(ackRequest, inviteRequest, inviteResponse, isOriginalUAC)
+	} else {
+		// Non-2xx ACK: same Route as original INVITE
+		CopyHeaders("Route", inviteRequest, ackRequest)
+	}
 
 	maxForwardsHeader := MaxForwardsHeader(70)
 	ackRequest.AppendHeader(&maxForwardsHeader)
