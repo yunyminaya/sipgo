@@ -166,7 +166,7 @@ func (tx *ClientTx) ack() {
 	lastResp := tx.lastResp
 	tx.mu.RUnlock()
 
-	ack := sip.NewAckRequest(tx.origin, lastResp, nil, true) // TODO: Correct direction of ACK request
+	ack := sip.NewAckRequest(tx.origin, lastResp, nil)
 	err := tx.conn.WriteMsg(ack)
 	if err != nil {
 		tx.log.Error("send ACK request failed", "err", err,
