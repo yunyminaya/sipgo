@@ -34,14 +34,17 @@ func CopyRoutingHeaders(newReq *Request, inviteRequest *Request, inviteResponse 
 	}
 }
 
-// NewAckRequest creates ACK request for 2xx INVITE
-// https://tools.ietf.org/html/rfc3261#section-13.2.2.4
-func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte, isOriginalUAC bool) *Request {
+// NewAckRequest creates ACK request for an INVITE response
+// For 2xx: https://tools.ietf.org/html/rfc3261#section-13.2.2.4
+// For non-2xx: https://datatracker.ietf.org/doc/html/rfc3261#section-17.1.1.3
+func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte) *Request {
 	Recipient := inviteRequest.Recipient
-	if contact := inviteResponse.Contact(); contact != nil {
-		// For ws and wss (like clients in browser), don't use Contact
-		if strings.Index(strings.ToLower(Recipient.String()), "transport=ws") == -1 {
-			Recipient = contact.Address
+	if inviteResponse.IsSuccess() {
+		if contact := inviteResponse.Contact(); contact != nil {
+			// For ws and wss (like clients in browser), don't use Contact
+			if strings.Index(strings.ToLower(Recipient.String()), "transport=ws") == -1 {
+				Recipient = contact.Address
+			}
 		}
 	}
 	ackRequest := sipgo.NewRequest(
@@ -56,7 +59,16 @@ func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte
 		viaHop.Params.Add("branch", GenerateBranch())
 	}
 
-	CopyRoutingHeaders(ackRequest, inviteRequest, inviteResponse, isOriginalUAC)
+	// TODO: Use CopyRoutingHeaders
+	if len(inviteRequest.GetHeaders("Route")) > 0 {
+		CopyHeaders("Route", inviteRequest, ackRequest)
+	} else {
+		hdrs := inviteResponse.GetHeaders("Record-Route")
+		for i := len(hdrs) - 1; i >= 0; i-- {
+			h := HeaderClone(hdrs[i])
+			ackRequest.AppendHeader(h)
+		}
+	}
 
 	maxForwardsHeader := MaxForwardsHeader(70)
 	ackRequest.AppendHeader(&maxForwardsHeader)
@@ -142,7 +154,7 @@ func NewCancelRequest(requestForCancel *Request) *Request {
 
 // NewByeRequest creates bye request from invite
 // TODO do some testing
-func NewByeRequest(inviteRequest *Request, inviteResponse *Response, body []byte, isOriginalUAC bool) *Request {
+func NewByeRequest(inviteRequest *Request, inviteResponse *Response, body []byte) *Request {
 	Recipient := inviteRequest.Recipient
 
 	byeRequest := NewRequest(
@@ -157,7 +169,16 @@ func NewByeRequest(inviteRequest *Request, inviteResponse *Response, body []byte
 	viaHop.Params.Add("branch", GenerateBranch())
 	// }
 
-	CopyRoutingHeaders(byeRequest, inviteRequest, inviteResponse, isOriginalUAC)
+	// TODO: Use CopyRoutingHeaders
+	if len(inviteRequest.GetHeaders("Route")) > 0 {
+		CopyHeaders("Route", inviteRequest, byeRequest)
+	} else {
+		hdrs := inviteResponse.GetHeaders("Record-Route")
+		for i := len(hdrs) - 1; i >= 0; i-- {
+			h := HeaderClone(hdrs[i])
+			byeRequest.AppendHeader(h)
+		}
+	}
 
 	maxForwardsHeader := MaxForwardsHeader(70)
 	byeRequest.AppendHeader(&maxForwardsHeader)

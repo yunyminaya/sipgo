@@ -385,7 +385,7 @@ func (l *Layer) ClientRequestConnection(req *sip.Request) (c Connection, err err
 			return nil, fmt.Errorf("fail to parse local connection address network=%s addr=%s: %w", network, laddrStr, err)
 		}
 
-		if viaHop.Host != "" {
+		if viaHop.Host == "" {
 			viaHop.Host = host
 		}
 		viaHop.Port = port
