@@ -34,8 +34,9 @@ func CopyRoutingHeaders(newReq *Request, inviteRequest *Request, inviteResponse 
 	}
 }
 
-// NewAckRequest creates ACK request for 2xx INVITE
-// https://tools.ietf.org/html/rfc3261#section-13.2.2.4
+// NewAckRequest creates ACK request for an INVITE response
+// For 2xx: https://tools.ietf.org/html/rfc3261#section-13.2.2.4
+// For non-2xx: https://datatracker.ietf.org/doc/html/rfc3261#section-17.1.1.3
 func NewAckRequest(inviteRequest *Request, inviteResponse *Response, body []byte) *Request {
 	Recipient := inviteRequest.Recipient
 	if inviteResponse.IsSuccess() {
