@@ -41,7 +41,7 @@ var (
 )
 
 func wrapTransportError(err error) error {
-	return fmt.Errorf("%s. %w", err.Error(), ErrTransport)
+	return fmt.Errorf("%w. %w", err, ErrTransport)
 }
 
 func wrapTimeoutError(err error) error {
