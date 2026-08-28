@@ -244,7 +244,7 @@ func TestResolveAddrNeverCrossPairsHostAndPort(t *testing.T) {
 		var addr Addr
 		addr.Port = 5060
 		err := resolveWithin(t, func(ctx context.Context) error {
-			return l.resolveAddr(ctx, "udp", testSRVHost, "sip", &addr)
+			return l.resolveAddr(ctx, "sip", "udp", testSRVHost, &addr)
 		})
 		if err != nil {
 			t.Fatalf("resolveAddr: %v", err)
@@ -321,7 +321,7 @@ func TestResolveAddrFallsBackToHostLookup(t *testing.T) {
 	var addr Addr
 	addr.Port = 5060
 	err := resolveWithin(t, func(ctx context.Context) error {
-		return l.resolveAddr(ctx, "udp", "plain.example.com", "sip", &addr)
+		return l.resolveAddr(ctx, "sip", "udp", "plain.example.com", &addr)
 	})
 	if err != nil {
 		t.Fatalf("resolveAddr: %v", err)
@@ -341,7 +341,7 @@ func TestResolveAddrSRVTargetMustResolve(t *testing.T) {
 	var addr Addr
 	addr.Port = 5060
 	err := resolveWithin(t, func(ctx context.Context) error {
-		return l.resolveAddrSRV(ctx, "udp", "broken.example.com", "sip", &addr)
+		return l.resolveAddrSRV(ctx, "sip", "udp", "broken.example.com", &addr)
 	})
 	if err == nil {
 		t.Fatalf("expected an error, got addr %s", addr.String())
@@ -482,7 +482,7 @@ func TestResolveAddrSRVEmptyAnswerIsAnError(t *testing.T) {
 	var addr Addr
 	addr.Port = 5060
 	err := resolveWithin(t, func(ctx context.Context) error {
-		return l.resolveAddrSRV(ctx, "udp", "empty.example.com", "sip", &addr)
+		return l.resolveAddrSRV(ctx, "sip", "udp", "empty.example.com", &addr)
 	})
 	if err == nil {
 		t.Fatalf("expected an error, got %s", addr.String())
@@ -503,7 +503,7 @@ func TestResolveAddrSRVFailureLeavesPortAlone(t *testing.T) {
 	var addr Addr
 	addr.Port = 5060
 	err := resolveWithin(t, func(ctx context.Context) error {
-		return l.resolveAddr(ctx, "udp", "mixed.example.com", "sip", &addr)
+		return l.resolveAddr(ctx, "sip", "udp", "mixed.example.com", &addr)
 	})
 	if err != nil {
 		t.Fatalf("resolveAddr: %v", err)
@@ -514,24 +514,80 @@ func TestResolveAddrSRVFailureLeavesPortAlone(t *testing.T) {
 	}
 }
 
-// TLS uses _sips._tcp, not _sips._tls.
-func TestResolveAddrSRVTLSUsesSipsTCP(t *testing.T) {
+// A sip: URI carried over TLS looks up _sips._tcp, not _sip._tcp and not
+// _sips._tls.
+func TestResolveRequestAddrTLSUsesSipsTCP(t *testing.T) {
+	const host = "secure.example.com"
 	d := newFakeDNS(t,
 		map[string][]string{"edge.example.com": {"192.0.2.70"}},
 		map[string][]fakeSRV{
-			"_sips._tcp.secure.example.com": {{target: "edge.example.com", port: 5061}},
+			"_sips._tcp." + host: {{target: "edge.example.com", port: 5061}},
 		})
 	l := newTestLayer(t, d)
 
+	// Scheme stays sip; the TLS transport is what selects the sips service.
+	req := sipgo.NewRequest(sipgo.INVITE, sipgo.Uri{Scheme: "sip", User: "1234", Host: host})
 	var addr Addr
-	addr.Port = 5060
+	addr.Port = 5061
 	err := resolveWithin(t, func(ctx context.Context) error {
-		return l.resolveAddrSRV(ctx, "tls", "secure.example.com", "sip", &addr)
+		return l.resolveRequestAddr(ctx, "tls", host, req, &addr)
 	})
 	if err != nil {
-		t.Fatalf("resolveAddrSRV: %v", err)
+		t.Fatalf("resolveRequestAddr: %v", err)
 	}
 	if got, want := addr.String(), "192.0.2.70:5061"; got != want {
 		t.Fatalf("got %s, want %s", got, want)
+	}
+	if n := d.queries("_sip._tcp."+host, typeSRV); n != 0 {
+		t.Fatalf("_sip._tcp was queried %d times for a TLS transport", n)
+	}
+}
+
+// srvLabels is the single place transports become SRV names, for both resolvers.
+func TestSRVLabels(t *testing.T) {
+	for _, tc := range []struct {
+		network, uriScheme string
+		want               string // the owner name prefix these labels build
+	}{
+		{"udp", "sip", "_sip._udp"},
+		{"udp4", "sip", "_sip._udp"},
+		{"tcp", "sip", "_sip._tcp"},
+		{"tls", "sip", "_sips._tcp"}, // RFC 3263 4.1, not _sips._tls
+		{"tls", "sips", "_sips._tcp"},
+		{"ws", "sip", "_sip._ws"},    // RFC 7118 6
+		{"wss", "sip", "_sips._wss"}, // secure transport wins over the scheme
+		{"wss", "sips", "_sips._wss"},
+	} {
+		service, protocol := srvLabels(tc.network, tc.uriScheme)
+		if got := "_" + service + "._" + protocol; got != tc.want {
+			t.Errorf("srvLabels(%q, %q) = %s, want %s", tc.network, tc.uriScheme, got, tc.want)
+		}
+	}
+}
+
+// A WebSocket transport resolves through _sip._ws rather than _sip._tcp.
+func TestResolveRequestAddrWSUsesSipWS(t *testing.T) {
+	const host = "ws.example.com"
+	d := newFakeDNS(t,
+		map[string][]string{"edge.example.com": {"192.0.2.80"}},
+		map[string][]fakeSRV{
+			"_sip._ws." + host: {{target: "edge.example.com", port: 8080}},
+		})
+	l := newTestLayer(t, d)
+
+	req := sipgo.NewRequest(sipgo.INVITE, sipgo.Uri{Scheme: "sip", User: "1234", Host: host})
+	var addr Addr
+	addr.Port = 5060
+	err := resolveWithin(t, func(ctx context.Context) error {
+		return l.resolveRequestAddr(ctx, "ws", host, req, &addr)
+	})
+	if err != nil {
+		t.Fatalf("resolveRequestAddr: %v", err)
+	}
+	if got, want := addr.String(), "192.0.2.80:8080"; got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+	if n := d.queries("_sip._tcp."+host, typeSRV); n != 0 {
+		t.Fatalf("_sip._tcp was queried %d times for a ws transport", n)
 	}
 }

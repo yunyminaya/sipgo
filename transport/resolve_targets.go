@@ -37,7 +37,8 @@ func (l *Layer) ResolveTargets(ctx context.Context, network, host string, port i
 		return l.resolveTargetsIP(ctx, host, port)
 	}
 
-	targets, err := l.resolveTargetsSRV(ctx, network, host, sipScheme)
+	service, protocol := srvLabels(network, sipScheme)
+	targets, err := l.resolveTargetsSRV(ctx, service, protocol, host)
 	if err == nil && len(targets) > 0 {
 		return targets, nil
 	}
@@ -73,19 +74,10 @@ func (l *Layer) resolveTargetsIP(ctx context.Context, host string, port int) ([]
 
 // resolveTargetsSRV resolves every SRV record, keeping each record's port with
 // the addresses of the target that named it. Records arrive sorted by priority
-// and randomised by weight, so record order is the order to try.
-func (l *Layer) resolveTargetsSRV(ctx context.Context, network, host, sipScheme string) ([]Addr, error) {
-	var proto string
-	switch network {
-	case "udp", "udp4", "udp6":
-		proto = "udp"
-	case "tls":
-		proto = "tls"
-	default:
-		proto = "tcp"
-	}
-
-	_, records, err := l.dnsResolver.LookupSRV(ctx, sipScheme, proto, host)
+// and randomised by weight, so record order is the order to try. Labels come
+// from srvLabels, the same mapping resolveAddrSRV uses.
+func (l *Layer) resolveTargetsSRV(ctx context.Context, service, protocol, host string) ([]Addr, error) {
+	_, records, err := l.dnsResolver.LookupSRV(ctx, service, protocol, host)
 	if err != nil {
 		return nil, fmt.Errorf("fail to lookup SRV for %q: %w", host, err)
 	}

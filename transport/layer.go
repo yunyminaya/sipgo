@@ -19,6 +19,34 @@ var (
 	ErrNetworkNotSuported = errors.New("protocol not supported")
 )
 
+// srvLabels returns the SRV service and protocol labels for a transport.
+// RFC 3263 4.1 covers udp, tcp and tls; RFC 7118 6 covers ws and wss. The secure
+// transports are always sips, whatever the URI scheme says.
+func srvLabels(network, uriScheme string) (service, protocol string) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return uriScheme, "udp"
+	case "tls":
+		return "sips", "tcp"
+	case "ws":
+		return uriScheme, "ws"
+	case "wss":
+		return "sips", "wss"
+	default:
+		return uriScheme, "tcp"
+	}
+}
+
+// dnsIPPreference selects which family to take when a host resolves to both.
+type dnsIPPreference int
+
+const (
+	// dnsPreferAny takes whichever address the resolver returned first.
+	dnsPreferAny dnsIPPreference = iota
+	dnsPreferIPv4
+	dnsPreferIPv6
+)
+
 // Layer implementation.
 type Layer struct {
 	log *slog.Logger
@@ -37,9 +65,9 @@ type Layer struct {
 
 	handlers []sip.MessageHandler
 
-	// dnsPreferSRV does always SRV lookup first
+	// dnsPreferSRV always does the SRV lookup first
 	dnsPreferSRV bool
-	dnsPreferIP  int // 0 - no preference , 1 -ip4, 2 - ip6
+	dnsPreferIP  dnsIPPreference
 
 	// ConnectionReuse will force connection reuse when passing request
 	ConnectionReuse bool
@@ -62,7 +90,7 @@ func NewLayer(
 		listenPorts:     make(map[string][]int),
 		dnsResolver:     dnsResolver,
 		dnsPreferSRV:    true,
-		dnsPreferIP:     1, // IPV4
+		dnsPreferIP:     dnsPreferIPv4,
 		ConnectionReuse: true,
 	}
 
@@ -408,9 +436,9 @@ func (l *Layer) ClientRequestConnection(req *sip.Request) (c Connection, err err
 // honoring the port is not implemented, which is what resolveRequestAddr does.
 //
 // resolveAddr, resolveAddrIP and resolveAddrSRV below started as upstream v1.4.0.
-// Changed since: _sips._tcp for TLS rather than _sips._tls, SRV misses logged at
-// debug now that SRV runs first, bounds checks around the DNS answers, and no
-// Addr.Zone since nothing here reads it back.
+// Changed since: SRV labels come from srvLabels rather than being derived inside
+// resolveAddrSRV, SRV misses logged at debug now that SRV runs first, bounds
+// checks around the DNS answers, and no Addr.Zone since nothing here reads it back.
 func (l *Layer) resolveRequestAddr(ctx context.Context, network string, host string, req *sip.Request, addr *Addr) error {
 	// In order: explicitly set destination first, then the Route header, then the
 	// request URI.
@@ -429,13 +457,14 @@ func (l *Layer) resolveRequestAddr(ctx context.Context, network string, host str
 	if uri.Port > 0 {
 		return l.resolveAddrIP(ctx, host, addr)
 	}
-	return l.resolveAddr(ctx, network, host, uri.Scheme, addr)
+	service, protocol := srvLabels(network, uri.Scheme)
+	return l.resolveAddr(ctx, service, protocol, host, addr)
 }
 
 // slowResolveThreshold is when a lookup is slow enough to be worth a log line.
 const slowResolveThreshold = 50 * time.Millisecond
 
-func (l *Layer) resolveAddr(ctx context.Context, network string, host string, sipScheme string, addr *Addr) error {
+func (l *Layer) resolveAddr(ctx context.Context, service, protocol string, host string, addr *Addr) error {
 	defer func(start time.Time) {
 		if dur := time.Since(start); dur > slowResolveThreshold {
 			l.log.Warn("DNS resolution is slow", "host", host, "dur", dur)
@@ -443,7 +472,7 @@ func (l *Layer) resolveAddr(ctx context.Context, network string, host string, si
 	}(time.Now())
 
 	if l.dnsPreferSRV {
-		err := l.resolveAddrSRV(ctx, network, host, sipScheme, addr)
+		err := l.resolveAddrSRV(ctx, service, protocol, host, addr)
 		if err == nil {
 			return nil
 		}
@@ -458,7 +487,7 @@ func (l *Layer) resolveAddr(ctx context.Context, network string, host string, si
 	}
 
 	l.log.Debug("Host lookup failed, using SRV", "host", host, "error", err)
-	return l.resolveAddrSRV(ctx, network, host, sipScheme, addr)
+	return l.resolveAddrSRV(ctx, service, protocol, host, addr)
 }
 
 func (l *Layer) resolveAddrIP(ctx context.Context, hostname string, addr *Addr) error {
@@ -470,9 +499,8 @@ func (l *Layer) resolveAddrIP(ctx context.Context, hostname string, addr *Addr) 
 		return fmt.Errorf("no addresses for %q", hostname)
 	}
 
-	// dnsPreferIP picks a family: 1 for IPv4, 2 for IPv6, 0 for whatever came first.
-	if l.dnsPreferIP > 0 {
-		wantIPv4 := l.dnsPreferIP == 1
+	if l.dnsPreferIP != dnsPreferAny {
+		wantIPv4 := l.dnsPreferIP == dnsPreferIPv4
 		for _, ip := range ips {
 			// To4 returns nil for anything that is not IPv4.
 			if (ip.IP.To4() != nil) == wantIPv4 {
@@ -487,19 +515,10 @@ func (l *Layer) resolveAddrIP(ctx context.Context, hostname string, addr *Addr) 
 	return nil
 }
 
-func (l *Layer) resolveAddrSRV(ctx context.Context, network string, hostname string, sipScheme string, addr *Addr) error {
-	service, proto := sipScheme, "tcp"
-	switch network {
-	case "udp", "udp4", "udp6":
-		proto = "udp"
-	case "tls":
-		// RFC 3263 4.1 names SIP over TLS _sips._tcp, whatever the URI scheme is.
-		service = "sips"
-	}
-
+func (l *Layer) resolveAddrSRV(ctx context.Context, service, protocol string, hostname string, addr *Addr) error {
 	// Records arrive sorted by priority and shuffled by weight within a priority,
 	// so the first one is the one to use.
-	_, records, err := l.dnsResolver.LookupSRV(ctx, service, proto, hostname)
+	_, records, err := l.dnsResolver.LookupSRV(ctx, service, protocol, hostname)
 	if err != nil {
 		return fmt.Errorf("failed to look up SRV for %q: %w", hostname, err)
 	}
