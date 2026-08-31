@@ -156,17 +156,19 @@ func (t *TCPTransport) readConnection(conn *TCPConnection, raddr string, handler
 	defer t.pool.CloseAndDelete(conn, raddr)
 
 	// Create stream parser context
-	par := t.parser.NewSIPStream()
+	par := newStreamParser(t.parser.NewSIPStream())
 
 	for {
 		num, err := conn.Read(buf)
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
 				t.log.Debug("connection was closed", "err", err)
+				connectionClosed.WithLabelValues("tcp", "peer_close").Inc()
 				return
 			}
 
 			t.log.Debug("Read error", "err", err)
+			connectionClosed.WithLabelValues("tcp", "read_error").Inc()
 			return
 		}
 
@@ -187,24 +189,27 @@ func (t *TCPTransport) readConnection(conn *TCPConnection, raddr string, handler
 		// TODO fallback to parseFull if message size limit is set
 
 		// t.log.Debug().Str("raddr", raddr).Str("data", string(data)).Msg("new message")
-		t.parseStream(par, data, raddr, handler)
+		if err := t.parseStream(par, data, raddr, handler); err != nil {
+			// Once the stream cannot be framed the connection is useless: the
+			// parser will never recognise another message on it, but reads keep
+			// succeeding so nothing else notices. Close it so the next call
+			// gets a fresh connection.
+			reason := closeReason(err)
+			t.log.Info("closing connection, sip stream cannot be framed",
+				"err", err, "raddr", raddr, "reason", reason)
+			connectionClosed.WithLabelValues("tcp", reason).Inc()
+			return
+		}
 	}
 }
 
-func (t *TCPTransport) parseStream(par *sipgo.ParserStream, data []byte, src string, handler sip.MessageHandler) {
+func (t *TCPTransport) parseStream(par *streamParser, data []byte, src string, handler sip.MessageHandler) error {
 	bytesPacketSize.WithLabelValues("tcp", "read").Observe(float64(len(data)))
-	err := par.ParseSIPStream(data, func(msg sipgo.Message) {
+	return par.parse(data, func(msg sipgo.Message) {
 		msg.SetTransport(t.Network())
 		msg.SetSource(src)
 		handler(msg)
 	})
-	if err == sipgo.ErrParseSipPartial {
-		return
-	}
-	if err != nil {
-		t.log.Info("failed to parse", "err", err, "data", string(data))
-		return
-	}
 }
 
 // TODO use this when message size limit is defined

@@ -3,6 +3,7 @@ package transport
 import (
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/livekit/sipgo/sip"
 )
@@ -15,6 +16,16 @@ var (
 	// 0 	- close connection immediatelly after transaction terminate
 	// 1 	- keep connection idle after transaction termination
 	IdleConnection int = 1
+
+	// MaxPartialMessageSize bounds how many bytes may be read without framing a
+	// single complete message before the stream is treated as desynchronized.
+	MaxPartialMessageSize int = 64 * 1024
+
+	// MaxPartialMessageAge bounds how long one message may stay incomplete
+	// while data keeps arriving before the stream is treated as
+	// desynchronized. Real SIP messages complete within a read or two, so this
+	// only has to be generous enough for a slow link.
+	MaxPartialMessageAge = 10 * time.Second
 )
 
 const (

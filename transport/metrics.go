@@ -23,4 +23,11 @@ var (
 			3000, 4000,
 		},
 	}, []string{"transport", "type"})
+
+	connectionClosed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "sipgo",
+		Subsystem: "transport",
+		Name:      "connection_closed_total",
+		Help:      "Connections closed by the transport, by reason",
+	}, []string{"transport", "reason"})
 )
